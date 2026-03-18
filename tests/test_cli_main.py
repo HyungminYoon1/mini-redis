@@ -222,3 +222,33 @@ class CliMainTest(unittest.TestCase):
             self.cli_main.build_hello_frame(),
         )
         self.assertEqual(len(connection_factory.calls), 1)
+
+    def test_read_response_parses_map_payload(self) -> None:
+        stream = io.BytesIO(HELLO_RESPONSE)
+
+        response = self.cli_main.read_response(stream)
+
+        self.assertEqual(response.kind, "map")
+        self.assertEqual(
+            response.value,
+            {"server": "mini-redis", "version": "1.0", "proto": 3},
+        )
+
+    def test_render_response_formats_map_payload(self) -> None:
+        response = self.cli_main.RespObject(
+            kind="map",
+            value={"server": "mini-redis", "proto": 3, "value": None},
+        )
+
+        rendered = self.cli_main.render_response(response)
+
+        self.assertEqual(
+            rendered,
+            "server: mini-redis\nproto: 3\nvalue: (nil)",
+        )
+
+    def test_render_response_rejects_non_dict_map_value(self) -> None:
+        response = self.cli_main.RespObject(kind="map", value="invalid")
+
+        with self.assertRaisesRegex(ValueError, "dictionary"):
+            self.cli_main.render_response(response)
