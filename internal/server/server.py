@@ -62,12 +62,11 @@ class MiniRedisServer:
             server_socket.listen()
             server_socket.settimeout(self._accept_timeout_seconds())
 
-            if self._config.expiration_sweep_enabled:
-                self._expiration_sweeper.start()
-
             self._logger.info(
                 f"mini-redis server listening on {self._config.host}:{self._config.port}"
             )
+            if self._config.expiration_sweep_enabled:
+                self._expiration_sweeper.start()
 
             try:
                 while not self._shutdown_manager.is_shutdown_requested():
@@ -81,6 +80,7 @@ class MiniRedisServer:
                         raise
 
                     with client_socket:
+                        client_socket.settimeout(self._config.idle_timeout_seconds)
                         if not self._resource_guard.is_connection_allowed(
                             self._metrics.active_connections
                         ):
@@ -93,7 +93,6 @@ class MiniRedisServer:
                         self._logger.info(
                             f"accepted connection from {client_address[0]}:{client_address[1]}"
                         )
-                        client_socket.settimeout(self._config.idle_timeout_seconds)
                         handler = SessionHandler(
                             client_socket=client_socket,
                             protocol_handler=ProtocolHandler(),

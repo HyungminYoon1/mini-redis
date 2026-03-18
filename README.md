@@ -8,7 +8,7 @@
 - CLI 클라이언트
 - RESP3 `HELLO 3` 협상
 - 문자열 키-값 저장
-- `SET`, `GET`, `DEL`, `EXPIRE`, `TTL`
+- `Hash`, `List`, `Set`, `Sorted Set` 확장
 - TTL 지연 삭제 및 백그라운드 주기적 정리
 
 ## 주요 특징
@@ -26,9 +26,14 @@
 - 인메모리 저장소
 - 영속성 없음
 - 복제, 클러스터링, 샤딩 없음
-- 1차 구현 자료형은 문자열만 지원
 
-향후 확장 로드맵은 `Hash`, `List`, `Set`, `Sorted Set` 순서를 기준으로 정리되어 있습니다.
+현재 지원 자료형:
+
+- `String`
+- `Hash`
+- `List`
+- `Set`
+- `Sorted Set`
 
 ## 빠른 시작
 
@@ -48,20 +53,12 @@ python -m pip install -r requirements.txt
 python -m cmd.mini_redis_server.main
 ```
 
-기본 서버 주소/포트는 문서에 정의된 런타임 설정을 따릅니다.
-
 ### 3. CLI 단일 명령 실행
 
 ```powershell
 python -m cmd.mini_redis_cli.main GET mykey
-python -m cmd.mini_redis_cli.main SET mykey hello
-python -m cmd.mini_redis_cli.main TTL mykey
-```
-
-호스트와 포트를 직접 지정할 수도 있습니다.
-
-```powershell
-python -m cmd.mini_redis_cli.main --host 127.0.0.1 --port 6379 GET mykey
+python -m cmd.mini_redis_cli.main HSET user name mini
+python -m cmd.mini_redis_cli.main LRANGE queue 0 -1
 ```
 
 ### 4. CLI REPL 실행
@@ -75,10 +72,10 @@ python -m cmd.mini_redis_cli.main
 ```text
 mini-redis> SET mykey hello
 OK
-mini-redis> GET mykey
-hello
-mini-redis> TTL mykey
--1
+mini-redis> HSET user name mini
+1
+mini-redis> HGET user name
+mini
 mini-redis> quit
 ```
 
@@ -149,11 +146,11 @@ tests/
 현재 필수 지원 명령은 다음과 같습니다.
 
 - `HELLO 3`
-- `SET key value`
-- `GET key`
-- `DEL key`
-- `EXPIRE key seconds`
-- `TTL key`
+- `SET`, `GET`, `DEL`, `EXPIRE`, `TTL`
+- `HSET`, `HGET`, `HDEL`, `HGETALL`
+- `LPUSH`, `RPUSH`, `LPOP`, `RPOP`, `LRANGE`
+- `SADD`, `SREM`, `SMEMBERS`, `SISMEMBER`
+- `ZADD`, `ZREM`, `ZRANGE`, `ZSCORE`
 
 ## 입력 명령 예시
 
@@ -161,20 +158,20 @@ CLI 단일 명령 실행 예시:
 
 ```powershell
 python -m cmd.mini_redis_cli.main SET mykey hello
-python -m cmd.mini_redis_cli.main GET mykey
-python -m cmd.mini_redis_cli.main EXPIRE mykey 10
+python -m cmd.mini_redis_cli.main HSET user name mini
+python -m cmd.mini_redis_cli.main SMEMBERS tags
+python -m cmd.mini_redis_cli.main ZRANGE ranking 0 -1
 python -m cmd.mini_redis_cli.main TTL mykey
-python -m cmd.mini_redis_cli.main DEL mykey
 ```
 
 REPL 내부 입력 예시:
 
 ```text
 mini-redis> SET mykey hello
-mini-redis> GET mykey
-mini-redis> EXPIRE mykey 10
-mini-redis> TTL mykey
-mini-redis> DEL mykey
+mini-redis> HSET user name mini
+mini-redis> HGETALL user
+mini-redis> RPUSH queue a b c
+mini-redis> LRANGE queue 0 -1
 mini-redis> quit
 ```
 

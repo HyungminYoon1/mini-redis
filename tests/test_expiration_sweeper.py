@@ -5,36 +5,38 @@ from internal.clock.fake_clock import FakeClock
 from internal.expiration.expiration_sweeper import ExpirationSweeper
 from internal.repository.in_memory_store import InMemoryStoreRepository
 from internal.repository.in_memory_ttl import InMemoryTtlRepository
+from internal.repository.value_entry import ValueEntry, ValueType
 
 
 def test_sweep_once_removes_expired_keys() -> None:
-    clock = FakeClock(current_time=10.0)
-    store = InMemoryStoreRepository()
-    ttl = InMemoryTtlRepository()
+    clock = FakeClock(current_time=100.0)
+    store_repository = InMemoryStoreRepository()
+    ttl_repository = InMemoryTtlRepository()
+    store_repository.set(
+        "expired",
+        ValueEntry(value_type=ValueType.STRING, value="value"),
+    )
+    ttl_repository.set_expiration("expired", 99.0)
+
     sweeper = ExpirationSweeper(
         clock=clock,
-        store_repository=store,
-        ttl_repository=ttl,
-        sweep_interval_seconds=1,
+        store_repository=store_repository,
+        ttl_repository=ttl_repository,
         sweep_batch_size=10,
     )
-    store.set("expired", "value")
-    ttl.set_expiration("expired", 5.0)
 
     removed_count = sweeper.sweep_once()
 
     assert removed_count == 1
-    assert store.get("expired") is None
-    assert ttl.get_expiration("expired") is None
+    assert store_repository.get("expired") is None
+    assert ttl_repository.get_expiration("expired") is None
 
 
 def test_start_and_stop_update_running_state() -> None:
     sweeper = ExpirationSweeper(
-        clock=FakeClock(current_time=0.0),
+        clock=FakeClock(current_time=100.0),
         store_repository=InMemoryStoreRepository(),
         ttl_repository=InMemoryTtlRepository(),
-        sweep_interval_seconds=1,
-        sweep_batch_size=10,
     )
 
     sweeper.start()
@@ -46,11 +48,10 @@ def test_start_and_stop_update_running_state() -> None:
 
 def test_start_is_idempotent_when_already_running() -> None:
     sweeper = ExpirationSweeper(
-        clock=FakeClock(current_time=0.0),
+        clock=FakeClock(current_time=100.0),
         store_repository=InMemoryStoreRepository(),
         ttl_repository=InMemoryTtlRepository(),
         sweep_interval_seconds=1,
-        sweep_batch_size=10,
     )
 
     sweeper.start()
