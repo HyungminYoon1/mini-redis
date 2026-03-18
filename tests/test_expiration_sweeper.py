@@ -1,3 +1,4 @@
+import threading
 import time
 
 from internal.clock.fake_clock import FakeClock
@@ -63,23 +64,24 @@ def test_start_is_idempotent_when_already_running() -> None:
 
 def test_background_worker_runs_sweep_loop() -> None:
     sweeper = ExpirationSweeper(
-        clock=FakeClock(current_time=100.0),
+        clock=FakeClock(current_time=0.0),
         store_repository=InMemoryStoreRepository(),
         ttl_repository=InMemoryTtlRepository(),
-        sweep_interval_seconds=1,
+        sweep_interval_seconds=0.01,
+        sweep_batch_size=10,
     )
-    sweep_calls: list[str] = []
+    called = threading.Event()
 
     def fake_sweep_once() -> int:
-        sweep_calls.append("called")
-        sweeper.stop()
+        called.set()
         return 0
 
     sweeper.sweep_once = fake_sweep_once  # type: ignore[method-assign]
 
     sweeper.start()
-    time.sleep(1.2)
+    try:
+        assert called.wait(timeout=0.2) is True
+    finally:
+        sweeper.stop()
 
-    assert sweep_calls == ["called"]
     assert sweeper.is_running() is False
-

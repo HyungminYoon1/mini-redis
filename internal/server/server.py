@@ -127,9 +127,9 @@ class MiniRedisServer:
             self._server_socket.close()
 
     def _accept_timeout_seconds(self) -> float:
-        return max(1.0, min(float(self._config.idle_timeout_seconds), 1.0))
+        return max(0.1, min(1.0, float(self._config.graceful_shutdown_seconds)))
 
     def _wait_for_active_connections(self) -> None:
-        deadline = time.monotonic() + max(0, self._config.graceful_shutdown_seconds)
+        deadline = time.monotonic() + self._config.graceful_shutdown_seconds
         while self._metrics.active_connections > 0 and time.monotonic() < deadline:
-            time.sleep(0.05)
+            time.sleep(0.01)
