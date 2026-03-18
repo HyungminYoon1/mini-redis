@@ -1,6 +1,7 @@
 import socket
 
 from internal.observability.logger import Logger
+from internal.guard.resource_guard import ResourceGuard
 from internal.protocol.resp.request_decoder import RespRequestDecoder
 from internal.protocol.resp.response_encoder import RespResponseEncoder
 from internal.service.command_service import CommandService
@@ -13,6 +14,7 @@ class SessionHandler:
         request_decoder: RespRequestDecoder,
         command_service: CommandService,
         response_encoder: RespResponseEncoder,
+        resource_guard: ResourceGuard,
         logger: Logger | None = None,
         read_size: int = 4096,
     ) -> None:
@@ -20,6 +22,7 @@ class SessionHandler:
         self._request_decoder = request_decoder
         self._command_service = command_service
         self._response_encoder = response_encoder
+        self._resource_guard = resource_guard
         self._logger = logger or Logger()
         self._read_size = read_size
 
@@ -27,6 +30,11 @@ class SessionHandler:
         try:
             request_bytes = self._read_request()
             if not request_bytes:
+                return
+            if not self._resource_guard.is_request_size_allowed(len(request_bytes)):
+                self._logger.error(
+                    f"request size exceeded: {len(request_bytes)} bytes"
+                )
                 return
 
             response = self._process_request(request_bytes)
