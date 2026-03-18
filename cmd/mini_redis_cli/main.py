@@ -3,7 +3,7 @@ import socket
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import BinaryIO, List, Optional, Sequence, TextIO, Union
+from typing import BinaryIO, List, Optional, Sequence, TextIO, TypeAlias, Union
 
 if __package__ in (None, ""):
     project_root = Path(__file__).resolve().parents[2]
@@ -14,6 +14,9 @@ from internal.config import defaults
 from internal.config.runtime_config import RuntimeConfig
 
 CRLF = b"\r\n"
+RespScalarValue: TypeAlias = str | int | None
+RespMapValue: TypeAlias = dict[str, RespScalarValue]
+RespObjectValue: TypeAlias = RespScalarValue | RespMapValue
 
 
 class CliUsageError(Exception):
@@ -31,7 +34,7 @@ class CliArguments:
 @dataclass(frozen=True)
 class RespObject:
     kind: str
-    value: object
+    value: RespObjectValue
 
 
 class CliArgumentParser(argparse.ArgumentParser):
@@ -120,7 +123,7 @@ def read_null(stream: BinaryIO) -> RespObject:
     return RespObject(kind="null", value=None)
 
 
-def materialize_response_value(response: RespObject) -> object:
+def materialize_response_value(response: RespObject) -> RespObjectValue:
     if response.kind in {"simple_string", "blob_string", "number"}:
         return response.value
     if response.kind == "null":
@@ -156,7 +159,7 @@ def read_response(stream: BinaryIO) -> RespObject:
         return RespObject(kind="blob_string", value=value)
     if prefix == b"%":
         item_count = int(read_line(stream).decode("ascii"))
-        value = {}
+        value: RespMapValue = {}
         for _ in range(item_count):
             key = read_response(stream)
             item = read_response(stream)
@@ -173,7 +176,10 @@ def render_response(response: RespObject) -> str:
         return "(nil)"
     if response.kind == "map":
         lines = []
-        for key, value in response.value.items():
+        map_value = response.value
+        if not isinstance(map_value, dict):
+            raise ValueError("map response must contain a dictionary value")
+        for key, value in map_value.items():
             if value is None:
                 lines.append(f"{key}: (nil)")
                 continue
