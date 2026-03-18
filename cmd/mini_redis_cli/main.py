@@ -1,4 +1,5 @@
 import argparse
+import shlex
 import socket
 import sys
 from dataclasses import dataclass
@@ -27,7 +28,7 @@ class CliUsageError(Exception):
 class CliArguments:
     host: str
     port: int
-    command: str
+    command: Optional[str]
     command_arguments: List[str]
 
 
@@ -54,8 +55,6 @@ def build_argument_parser() -> argparse.ArgumentParser:
 def parse_cli_arguments(argv: Optional[Sequence[str]] = None) -> CliArguments:
     parser = build_argument_parser()
     namespace = parser.parse_args(list(argv) if argv is not None else None)
-    if not namespace.command:
-        raise CliUsageError("command is required")
     if namespace.port <= 0 or namespace.port > 65535:
         raise CliUsageError("port must be between 1 and 65535")
     return CliArguments(
@@ -233,21 +232,75 @@ def execute_command(
     )
 
 
+def run_repl(
+    config: RuntimeConfig,
+    stdin: TextIO,
+    stdout: TextIO,
+    stderr: TextIO,
+) -> int:
+    while True:
+        stdout.write("mini-redis> ")
+        stdout.flush()
+        line = stdin.readline()
+        if line == "":
+            return defaults.CLI_EXIT_SUCCESS
+
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped in {"exit", "quit"}:
+            return defaults.CLI_EXIT_SUCCESS
+
+        try:
+            tokens = shlex.split(line)
+        except ValueError as error:
+            stderr.write(f"error: {error}\n")
+            continue
+
+        command, *command_arguments = tokens
+
+        try:
+            response = execute_command(
+                config=config,
+                command=command,
+                command_arguments=command_arguments,
+            )
+        except (ConnectionError, OSError, socket.timeout) as error:
+            stderr.write(f"connection error: {error}\n")
+            continue
+
+        if response.kind == "error":
+            stderr.write(f"{render_error(response)}\n")
+            continue
+
+        stdout.write(f"{render_response(response)}\n")
+
+
 def main(
     argv: Optional[Sequence[str]] = None,
+    stdin: Optional[TextIO] = None,
     stdout: Optional[TextIO] = None,
     stderr: Optional[TextIO] = None,
 ) -> int:
-    stdout = stdout or sys.stdout
-    stderr = stderr or sys.stderr
+    resolved_stdin: TextIO = stdin if stdin is not None else sys.stdin
+    resolved_stdout: TextIO = stdout if stdout is not None else sys.stdout
+    resolved_stderr: TextIO = stderr if stderr is not None else sys.stderr
 
     try:
         arguments = parse_cli_arguments(argv)
     except CliUsageError as error:
         parser = build_argument_parser()
-        stderr.write(parser.format_usage())
-        stderr.write(f"error: {error}\n")
+        resolved_stderr.write(parser.format_usage())
+        resolved_stderr.write(f"error: {error}\n")
         return defaults.CLI_EXIT_USAGE_ERROR
+
+    if arguments.command is None:
+        return run_repl(
+            config=build_runtime_config(arguments),
+            stdin=resolved_stdin,
+            stdout=resolved_stdout,
+            stderr=resolved_stderr,
+        )
 
     try:
         response = execute_command(
@@ -256,14 +309,14 @@ def main(
             command_arguments=arguments.command_arguments,
         )
     except (ConnectionError, OSError, socket.timeout) as error:
-        stderr.write(f"connection error: {error}\n")
+        resolved_stderr.write(f"connection error: {error}\n")
         return defaults.CLI_EXIT_CONNECTION_ERROR
 
     if response.kind == "error":
-        stderr.write(f"{render_error(response)}\n")
+        resolved_stderr.write(f"{render_error(response)}\n")
         return defaults.CLI_EXIT_SERVER_ERROR
 
-    stdout.write(f"{render_response(response)}\n")
+    resolved_stdout.write(f"{render_response(response)}\n")
     return defaults.CLI_EXIT_SUCCESS
 
 
