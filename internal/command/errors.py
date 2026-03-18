@@ -4,3 +4,7 @@ class CommandError(Exception):
 
 class CommandValidationError(CommandError):
     pass
+
+
+class CommandExecutionError(CommandError):
+    pass

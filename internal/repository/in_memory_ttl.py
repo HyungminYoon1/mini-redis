@@ -1,4 +1,6 @@
-from internal.repository.ttl_repository import TtlRepository
+from __future__ import annotations
+
+from internal.repository.ttl_repository import TtlRepository
 
 
 class InMemoryTtlRepository(TtlRepository):

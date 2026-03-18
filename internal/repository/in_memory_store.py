@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from internal.repository.store_repository import StoreRepository
 
 
